@@ -1,4 +1,4 @@
-# tping / tping3
+9# tping / tping3
 
 A network load testing tool by [@persik-os](https://github.com/persik-os).
 
@@ -66,4 +66,8 @@ sudo apt update
 sudo apt install -y g++ libcurl4-openssl-dev libssl-dev libcap-dev
 git clone https://github.com/persik-os/tping.git
 cd tping
-g++ -O2 -pthread -std=c++17 -o tping tping.cpp
+# tping
+g++ -O2 -pthread -std=c++17 -o tping tping.cpp -lcap
+
+# tping3
+g++ -O2 -pthread -std=c++17 -o tping3 tping3.cpp -lcurl -lssl -lcrypto
