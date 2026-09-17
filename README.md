@@ -32,6 +32,6 @@ A network load testing tool by [@persik-os](https://github.com/persik-os).
 ### Сборка
 
 ```bash
-git clone https://github.com/<persik-os>/tping.git
+git clone https://github.com/persik-os/tping.git
 cd tping
 g++ -O2 -pthread -std=c++17 -o tping tping.cpp
