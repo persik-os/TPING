@@ -1,4 +1,4 @@
-9# tping / tping3
+# tping / tping3
 
 A network load testing tool by [@persik-os](https://github.com/persik-os).
 
