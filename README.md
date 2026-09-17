@@ -64,7 +64,6 @@ A network load testing tool by [@persik-os](https://github.com/persik-os).
 ```bash
 sudo apt update
 sudo apt install -y g++ libcurl4-openssl-dev libssl-dev libcap-dev
-```bash
 git clone https://github.com/persik-os/tping.git
 cd tping
 g++ -O2 -pthread -std=c++17 -o tping tping.cpp
