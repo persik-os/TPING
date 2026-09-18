@@ -36,6 +36,7 @@ using namespace std;
 using namespace chrono;
 
 atomic<bool> running(true);
+atomic<bool> stop_sending(false);
 atomic<unsigned long long> sent_packets(0);
 atomic<unsigned long long> recv_packets(0);
 atomic<unsigned long long> errors(0);
