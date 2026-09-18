@@ -133,8 +133,6 @@ sudo apt install -y g++ libcurl4-openssl-dev libssl-dev libcap-dev curl
 git clone https://github.com/qopix/tping.git
 cd tping
 make
-sudo cp tping tping3 /usr/local/bin/
-sudo setcap cap_net_raw+ep /usr/local/bin/tping
 ```
 ## Tping / tping3
 # Таблица Размеров
