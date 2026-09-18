@@ -81,18 +81,18 @@
 
 ###  tping2 ( серверный уровень)
 | Режим Флаг Что делает |
-| TCP SYN -syn SYN-пакеты (классический SYN-flood) |
-| TCP ACK -ack ACK-пакеты |
-| TCP FIN -fin FIN-пакеты |
-| TCP RST -rst RST-пакеты |
-| TCP XMAS -xmas FIN+PSH+URG |
-| UDP -udp UDP-пакеты |
-| ICMP -icmp Echo-запросы |
-| IPSO -ipso Наш формат поверх UDP |
-| Подмена src -spoof Случайный src IP |
-| Фрагментация -frag Дробить пакеты |
-| Вывод RTT (авто) Время ответа для каждого пакета | 
-| DoS/DDoS -dos / -ddos Свой IP / прокси |
+| TCP SYN -syn SYN-пакеты | (классический SYN-flood) |
+| TCP ACK -ack | ACK-пакеты |
+| TCP FIN -fin | FIN-пакеты |
+| TCP RST -rst | RST-пакеты |
+| TCP XMAS -xmas | FIN+PSH+URG |
+| UDP -udp | UDP-пакеты |
+| ICMP -icmp | Echo-запросы |
+| IPSO -ipso | Наш формат поверх UDP |
+| Подмена src -spoof | Случайный src IP |
+| Фрагментация -frag | Дробить пакеты |
+| Вывод RTT | (авто) Время ответа для каждого пакета | 
+| DoS/DDoS -dos / -ddos | Свой IP / прокси |
 ---
 
 ## Режимы tping
