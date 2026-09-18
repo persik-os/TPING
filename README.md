@@ -114,7 +114,7 @@
 ```bash
 sudo apt update
 sudo apt install -y g++ libcurl4-openssl-dev libssl-dev libcap-dev curl
-git clone https://github.com/persik-os/tping.git
+git clone https://github.com/qopix/tping.git
 cd tping
 make
 sudo cp tping tping3 /usr/local/bin/
