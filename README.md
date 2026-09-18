@@ -1,4 +1,4 @@
-# tping / tping3
+# tping / tping3 / tping2
 
 > Набор инструментов для **нагрузочного тестирования собственных серверов**.
 
@@ -162,3 +162,18 @@ total_size 8 заявленный объём
 timestamp 8 время отправки (µs)
 payload_len 2 длина payload
 payload N данные
+
+#tping2
+Режим Флаг Что делает
+TCP SYN -syn SYN-пакеты (классический SYN-flood)
+TCP ACK -ack ACK-пакеты
+TCP FIN -fin FIN-пакеты
+TCP RST -rst RST-пакеты
+TCP XMAS -xmas FIN+PSH+URG
+UDP -udp UDP-пакеты
+ICMP -icmp Echo-запросы
+IPSO -ipso Наш формат поверх UDP
+Подмена src -spoof Случайный src IP
+Фрагментация -frag Дробить пакеты
+Вывод RTT (авто) Время ответа для каждого пакета
+DoS/DDoS -dos / -ddos Свой IP / прокси
