@@ -177,3 +177,14 @@ IPSO -ipso Наш формат поверх UDP
 Фрагментация -frag Дробить пакеты
 Вывод RTT (авто) Время ответа для каждого пакета
 DoS/DDoS -dos / -ddos Свой IP / прокси
+
+##Makefile
+сборка всех инструментов-make.                        
+сбора по отдельрости:                                 
+make tping.                                             
+make tping2.                                            
+make tping3.                                            
+Установка в систему:                                   
+sudo make install.                                     
+очистка:                                                
+make clean.                                              
