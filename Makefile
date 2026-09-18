@@ -23,8 +23,8 @@ TPING2_LIBS = -lcap
 # Флаги для tping3 (HTTP/HTTPS нагрузчик)
 TPING3_LIBS = -lcurl -lssl -lcrypto
 
-# Флаги для tping4 (L7 slowloris)
-TPING4_LIBS =
+# Флаги для tping4 (L7 slowloris / rudy / handshake, HTTP и HTTPS)
+TPING4_LIBS = -lssl -lcrypto
 
 all: $(TARGET_TPING) $(TARGET_TPING2) $(TARGET_TPING3) $(TARGET_TPING4)
 
