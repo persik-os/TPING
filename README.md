@@ -119,7 +119,7 @@ cd tping
 make
 sudo cp tping tping3 /usr/local/bin/
 sudo setcap cap_net_raw+ep /usr/local/bin/tping
-'''
+```
 ## Tping / tping3
 # Таблица Размеров
 Обозначение Значение
