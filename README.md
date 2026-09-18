@@ -120,7 +120,7 @@ make
 sudo cp tping tping3 /usr/local/bin/
 sudo setcap cap_net_raw+ep /usr/local/bin/tping
 
-'''text
+## Tping / tping3
 # Таблица Размеров
 Обозначение Значение
 b байты
