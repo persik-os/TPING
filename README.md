@@ -129,7 +129,7 @@
 
 ```bash
 sudo apt update
-sudo apt install -y g++ libcurl4-openssl-dev libssl-dev libcap-dev curl
+sudo apt install -y g++ libcurl4-openssl-dev libssl-dev libcap-dev curl libssl-dev
 git clone https://github.com/qopix/tping.git
 cd tping
 make
