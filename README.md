@@ -117,3 +117,47 @@ sudo apt install -y g++ libcurl4-openssl-dev libssl-dev libcap-dev curl
 git clone https://github.com/persik-os/tping.git
 cd tping
 make
+sudo cp tping tping3 /usr/local/bin/
+sudo setcap cap_net_raw+ep /usr/local/bin/tping
+
+# Таблица Размеров
+Обозначение Значение
+b байты
+kb килобайты
+mb мегабайты
+gb гигабайты
+t терабайты
+
+# Флаги Tping
+Флаг Описание
+-dos отправка с локального IP (по умолчанию)
+-ddos отправка через прокси
+-ipso формат IPSO поверх UDP
+-icmp ICMP-режим (нужен root)
+-l бесконечная отправка
+-t <N> число потоков (1..256)
+-d <SEC> длительность в секундах
+-c <N> пакетов на поток
+-p <PORT> порт (по умолчанию 80)
+-table таблица размеров
+-help справка
+
+# Флаги Tping3
+Флаг Описание
+-dos отправка с локального IP (по умолчанию)
+-ddos отправка через прокси
+-url <URL> целевой URL
+-mode режим работы (по умолчанию get)
+-t <N> число потоков (1..512)
+-d <SEC> длительность в секундах
+-ua <FILE> файл User-Agent
+
+# Формат пакета IpSo
+Поле Размер Описание
+magic 4 "IPSO"
+seq 4 номер пакета
+frag_id 4 ID потока
+total_size 8 заявленный объём
+timestamp 8 время отправки (µs)
+payload_len 2 длина payload
+payload N данные
