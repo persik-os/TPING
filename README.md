@@ -205,6 +205,7 @@ sudo make install.
 очистка:                                                
 make clean.                                              
 
+## tping4
 > Набор инструментов для **нагрузочного тестирования собственных серверов**.
 
 Инструмент | Уровень | Назначение
@@ -280,15 +281,3 @@ DDoS  | `-ddos` | Отправка через прокси
 Random| `-rand` | Рандомизация path и User-Agent
 
 ---
-
-## Установка на Linux
-
-### Ubuntu / Debian / Kali
-
-```bash
-sudo apt update
-sudo apt install -y g++ make
-git clone https://github.com/qopix/tping.git
-cd tping
-make tping4
-sudo cp tping4 /usr/local/bin/
